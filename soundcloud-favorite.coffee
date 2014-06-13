@@ -7,15 +7,43 @@
 # Configuration:
 #   HUBOT_SOUNDCLOUD_CLIENTID: API client_id for SoundCloud
 #   HUBOT_SOUNDCLOUD_USER_IDS: commma-separeted user_id for SoundCloud
+#   HUBOT_SOUNDCLOUD_NOTIFY_ROOM_ID: room_id to notify
 #
 # Commands:
 #   None
 #
 # Notes:
-#   SoundClound
-#   Set the environment var HUBOT_SOUNDCLOUD_CLIENTID to your SoundCloud API client_id for this to work
 #
 # Author:
 #   Yusuke Fujiki (@fujikky)
 
+API_INTERVAL = 5 * 60 * 1000 # 5 min
+API_CLIENT_ID = process.env.HUBOT_SOUNDCLOUD_CLIENTID
+API_USER_IDS = process.env.HUBOT_SOUNDCLOUD_USER_IDS
+ROOM_ID = process.env.HUBOT_SOUNDCLOUD_NOTIFY_ROOM_ID
+
 module.exports = (robot) ->
+  unless (API_CLIENT_ID and API_USER_IDS)
+    robot.messageRoom ROOM_ID, "HUBOT_SOUNDCLOUD_CLIENTID and HUBOT_SOUNDCLOUD_USER_IDS must be defined."
+    return
+    
+  getFavorite = (userId) ->
+    robot.http("https://api.soundcloud.com/users/#{userId}/favorites.json")
+    .query({
+      cliend_id: API_CLIENT_ID
+    })
+    .get(err, res, body) ->
+      if res.statusCode is 200
+        data = JSON.parse(body)
+        track = robot.random data
+        robot.messageRoom ROOM_ID, "#{userId} liked! #{track.title} #{track.permalink_url}"
+          
+  userIds = API_USER_IDS.split(",") || []
+    
+  setInterval (->
+    
+    for userId of userIds
+      getFavorite userId
+
+  ), API_INTERVAL
+  
