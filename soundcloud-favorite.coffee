@@ -35,8 +35,11 @@ module.exports = (robot) ->
     .get(err, res, body) ->
       if res.statusCode is 200
         data = JSON.parse(body)
+        # todo: filter latest non-posted track
         track = robot.random data
         robot.messageRoom ROOM_ID, "#{userId} liked! #{track.title} #{track.permalink_url}"
+        
+        # todo: save posted track id to local file
           
   userIds = API_USER_IDS.split(",") || []
     
