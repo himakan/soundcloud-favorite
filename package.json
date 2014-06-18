@@ -1,0 +1,20 @@
+{
+  "name": "npm",
+  "version": "1.0.0",
+  "description": "SoundClound favorite notify hubot script",
+  "main": "index.coffee",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/himakan/soundcloud-favorite.git"
+  },
+  "dependencies": {
+    "request": "~> 2.34"
+  },
+  "author": "",
+  "license": "BSD",
+  "readmeFilename": "README.md",
+  "gitHead": "22296336c3b352178aa2872c4ab3a3b0d48cee37",
+  "bugs": {
+    "url": "https://github.com/himakan/soundcloud-favorite/issues"
+  }
+}
