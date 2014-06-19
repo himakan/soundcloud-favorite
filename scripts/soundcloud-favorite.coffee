@@ -15,13 +15,22 @@
 # Author:
 #   Yusuke Fujiki (@fujikky)
 
-API_INTERVAL = process.env.HUBOT_SOUNDCLOUD_FETCH_INTERVAL || 60 * 1000 #35 * 60 * 1000 # 5 min
+API_INTERVAL = parseInt(process.env.HUBOT_SOUNDCLOUD_FETCH_INTERVAL, 10)
+API_INTERVAL = (5 * 60 * 1000) if isNaN(API_INTERVAL) # 5 min
 API_CLIENT_ID = process.env.HUBOT_SOUNDCLOUD_CLIENTID
 
 Request = require('request')
 
 class SoundCloudStore
   _cache = null
+
+  @getRoomId: (msg) ->
+    if msg.message.data
+      return msg.message.data.room_id
+    else if msg.message.room
+      return msg.message.room
+    else
+      throw "`message` has no room_id:"
 
   @getAllStores: (robot) ->
     stores = []
@@ -34,6 +43,19 @@ class SoundCloudStore
       stores.push(new SoundCloudStore(robot, userId))
 
     return stores
+
+  @getRoomUsers: (robot, roomId) ->
+    userIds = robot.brain.get("soundcloud")
+    users = []
+
+    for userId, user of userIds
+      console.log("userId", userId)
+      console.log("user", user)
+      if user.rooms.indexOf(roomId) != -1
+        users.push userId
+
+    console.log("users", roomId)
+    return users
 
   @reset: (robot) ->
     robot.brain.soundcloud = null
@@ -86,50 +108,51 @@ class SoundCloudStore
 
 module.exports = (robot) ->
 
-  robot.respond /soundcloud fav(orite) reset$/i, (msg) ->
-    SoundCloudStore.reset()
-    msg.reply "Resetted all my SoundCloud's data!"
+  robot.respond /soundcloud-fav list$/i, (msg) ->
+    roomId = SoundCloudStore.getRoomId(msg)
+    console.log("roomId : #{roomId}")
 
-  robot.respond /soundcloud fav(orite)? (.*)$/i, (msg) ->
+    users = SoundCloudStore.getRoomUsers(robot, roomId)
+
+    if users.length == 0
+      msg.reply "Empty list in room '#{roomId}'!"
+      return
+
+    msg.reply "List of room '#{roomId}'\n#{users.join("\n")}"
+
+  robot.respond /soundcloud-fav listen (.*)$/i, (msg) ->
     unless API_CLIENT_ID
       msg.reply "HUBOT_SOUNDCLOUD_CLIENTID must be defined."
       return
 
-    userId = msg.match[2].trim()
+    userId = msg.match[1].trim()
 
     unless userId
       msg.reply "Tell me soundcloud user_id!"
       return
 
-    robot.logger.debug "userId: #{userId}"
     store = new SoundCloudStore(robot, userId)
-    robot.logger.debug "store ok"
-    roomId = if msg.message.data
-      msg.message.data.room_id
-    else if msg.message.room
-      msg.message.room
-    else
-      throw "`message` has no room_id:"
+    roomId = SoundCloudStore.getRoomId(msg)
 
-    robot.logger.debug "will add"
-    console.log store.addRoom.toString()
-
-    if store.addRoom roomId
-      robot.logger.debug "did add"
+    if store.addRoom(roomId)
       msg.reply "OK! Added User:'#{userId}' Room:'#{roomId}'"
       return
 
-    robot.logger.debug "did not add"
-    msg.reply = "Already exist User:'#{userId}' Room:'#{roomId}'"
+    msg.reply "Already exist User:'#{userId}' Room:'#{roomId}'"
+
+  robot.respond /soundcloud-fav ignore (.*)$/i, (msg) ->
+    msg.reply "Sorry, waiting for implementation!"
 
   getFav = () ->
     stores = SoundCloudStore.getAllStores(robot)
     for store in stores
 
+      if store.getRooms().length == 0
+        continue
+
       options =
         url: "https://api.soundcloud.com/users/#{store.userId}/favorites.json?client_id=#{API_CLIENT_ID}"
 
-      console.log options
       Request.get options, (error, response, body) =>
         unless response.statusCode == 200
           robot.logger.error "SoundCloud API Error #{response.statusCode}"
