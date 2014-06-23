@@ -143,43 +143,46 @@ module.exports = (robot) ->
   robot.respond /soundcloud-fav ignore (.*)$/i, (msg) ->
     msg.reply "Sorry, waiting for implementation!"
 
-  getFav = () ->
+  runAll = () ->
     stores = SoundCloudStore.getAllStores(robot)
     for store in stores
-
-      if store.getRooms().length == 0
-        continue
-
-      options =
-        url: "https://api.soundcloud.com/users/#{store.userId}/favorites.json?client_id=#{API_CLIENT_ID}"
-
-      Request.get options, (error, response, body) =>
-        unless response.statusCode == 200
-          robot.logger.error "SoundCloud API Error #{response.statusCode}"
-          return
-
-        tracks = JSON.parse(body)
-
-        if tracks.length == 0
-          return
-
-        # get latest track
-        track = tracks[0]
-
-        # save track id to brain
-        if not store.addTrack track.id
-          return
-
-        # notify to each rooms
-        for roomId in store.getRooms()
-          robot.messageRoom roomId, """
-            @#{store.userId} fav! #{track.title}
-            #{track.permalink_url}
-          """
-          continue
-
-        return
+      getFav store
     return
 
-  setTimeout getFav, 3000
-  setInterval getFav, API_INTERVAL
+  getFav = (store) ->
+    if store.getRooms().length == 0
+      return
+
+    options =
+      url: "https://api.soundcloud.com/users/#{store.userId}/favorites.json?client_id=#{API_CLIENT_ID}"
+
+    Request.get options, (error, response, body) =>
+      unless response.statusCode == 200
+        robot.logger.error "SoundCloud API Error #{response.statusCode}"
+        return
+
+      tracks = JSON.parse(body)
+
+      if tracks.length == 0
+        return
+
+      # get latest track
+      track = tracks[0]
+
+      # save track id to brain
+      if not store.addTrack track.id
+        return
+
+      # notify to each rooms
+      for roomId in store.getRooms()
+        robot.messageRoom roomId, """
+          @#{store.userId} fav! #{track.title}
+          #{track.permalink_url}
+        """
+
+      return
+    return
+
+  setTimeout runAll, 3000
+  setInterval runAll, API_INTERVAL
+  return
