@@ -1,16 +1,19 @@
 # Description
-#   Notify favorite track for the specified users.
+#   Notify soundcloud favorited track for the specified users.
 #
 # Dependencies:
-#   None
+#   "request": "~> 2.34"
 #
 # Configuration:
 #   HUBOT_SOUNDCLOUD_CLIENTID: API client_id for SoundCloud
 #
 # Commands:
-#   None
+#   hubot soundcloud-fav add <user_name> - Add user in current room
+#   hubot soundcloud-fav remove <user_name> - Remove user in current room
+#   hubot soundcloud-fav list - List users in current room
 #
 # Notes:
+#   None
 #
 # Author:
 #   Yusuke Fujiki (@fujikky)
@@ -79,7 +82,17 @@ class SoundCloudStore
   addRoom: (roomId) ->
     if _cache[@userId].rooms.indexOf(roomId) == -1
       @robot.logger.debug "Add roomId: '#{roomId}'"
-      _cache[@userId].rooms.push roomId
+      @getRooms().push roomId
+      @save()
+      return true
+
+    return false
+
+  removeRoom: (roomId) ->
+    index = _cache[@userId].rooms.indexOf(roomId)
+    if index != -1
+      @robot.logger.debug "Add roomId: '#{roomId}'"
+      @getRooms().splice index, 1
       @save()
       return true
 
@@ -92,8 +105,6 @@ class SoundCloudStore
     return _cache[@userId].trackIds.indexOf(trackId) != -1
 
   addTrack: (trackId) ->
-    console.log trackId
-    console.log _cache[@userId].trackIds
     if _cache[@userId].trackIds.indexOf(trackId) == -1
       @robot.logger.debug "Add trackId: '#{trackId}'"
       _cache[@userId].trackIds.push trackId
@@ -108,40 +119,20 @@ class SoundCloudStore
 
 module.exports = (robot) ->
 
-  robot.respond /soundcloud-fav list$/i, (msg) ->
-    roomId = SoundCloudStore.getRoomId(msg)
-    console.log("roomId : #{roomId}")
-
-    users = SoundCloudStore.getRoomUsers(robot, roomId)
-
-    if users.length == 0
-      msg.reply "Empty list in room '#{roomId}'!"
-      return
-
-    msg.reply "List of room '#{roomId}'\n#{users.join("\n")}"
-
-  robot.respond /soundcloud-fav listen (.*)$/i, (msg) ->
+  commonError = (msg) ->
     unless API_CLIENT_ID
       msg.reply "HUBOT_SOUNDCLOUD_CLIENTID must be defined."
-      return
+      return false
+    return true
 
+  getUserId = (msg) ->
     userId = msg.match[1].trim()
 
     unless userId
       msg.reply "Tell me soundcloud user_id!"
-      return
+      return false
 
-    store = new SoundCloudStore(robot, userId)
-    roomId = SoundCloudStore.getRoomId(msg)
-
-    if store.addRoom(roomId)
-      msg.reply "OK! Added User:'#{userId}' Room:'#{roomId}'"
-      return
-
-    msg.reply "Already exist User:'#{userId}' Room:'#{roomId}'"
-
-  robot.respond /soundcloud-fav ignore (.*)$/i, (msg) ->
-    msg.reply "Sorry, waiting for implementation!"
+    return userId
 
   runAll = () ->
     stores = SoundCloudStore.getAllStores(robot)
@@ -182,6 +173,51 @@ module.exports = (robot) ->
 
       return
     return
+
+  robot.respond /soundcloud-fav list$/i, (msg) ->
+    unless commonError msg
+      return
+
+    roomId = SoundCloudStore.getRoomId(msg)
+    users = SoundCloudStore.getRoomUsers(robot, roomId)
+
+    if users.length == 0
+      msg.reply "Empty list in room '#{roomId}'!"
+      return
+
+    msg.reply "List of room '#{roomId}'\n#{users.join("\n")}"
+
+  robot.respond /soundcloud-fav add (.*)$/i, (msg) ->
+    unless commonError msg
+      return
+
+    unless userId = getUserId msg
+      return
+
+    store = new SoundCloudStore(robot, userId)
+    roomId = SoundCloudStore.getRoomId(msg)
+
+    if store.addRoom(roomId)
+      msg.reply "OK! Added user '#{userId}' in room '#{roomId}'."
+      return
+
+    msg.reply "Already exists user '#{userId}' in room '#{roomId}'."
+
+  robot.respond /soundcloud-fav remove (.*)$/i, (msg) ->
+    unless commonError msg
+      return
+
+    unless userId = getUserId msg
+      return
+
+    store = new SoundCloudStore(robot, userId)
+    roomId = SoundCloudStore.getRoomId(msg)
+
+    if store.removeRoom(roomId)
+      msg.reply "OK! Removed user '#{userId}' in room '#{roomId}'."
+      return
+
+    msg.reply "Not exist user '#{userId}' in room '#{roomId}'."
 
   setTimeout runAll, 3000
   setInterval runAll, API_INTERVAL
