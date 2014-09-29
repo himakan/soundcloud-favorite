@@ -19,7 +19,7 @@
 #   Yusuke Fujiki (@fujikky)
 
 API_INTERVAL = parseInt(process.env.HUBOT_SOUNDCLOUD_FETCH_INTERVAL, 10)
-API_INTERVAL = (5 * 60 * 1000) if isNaN(API_INTERVAL) # 5 min
+API_INTERVAL = (10 * 60 * 1000) if isNaN(API_INTERVAL) # 10 min
 API_CLIENT_ID = process.env.HUBOT_SOUNDCLOUD_CLIENTID
 
 Request = require('request')
@@ -160,16 +160,20 @@ module.exports = (robot) ->
       # get latest track
       track = tracks[0]
 
+      try
+        # notify to each rooms
+        for roomId in store.getRooms()
+          robot.messageRoom roomId, """
+            @#{store.userId} fav! #{track.title}
+            #{track.permalink_url}
+          """
+      catch error
+        robot.logger.error "Slack API Error #{error}"
+        return
+
       # save track id to brain
       if not store.addTrack track.id
         return
-
-      # notify to each rooms
-      for roomId in store.getRooms()
-        robot.messageRoom roomId, """
-          @#{store.userId} fav! #{track.title}
-          #{track.permalink_url}
-        """
 
       return
     return
